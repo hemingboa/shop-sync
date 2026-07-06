@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>店铺进销存管理</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --primary:#4F46E5;--primary-light:#818CF8;--primary-bg:#EEF2FF;
+    --success:#10B981;--success-bg:#D1FAE5;
+    --danger:#EF4444;--danger-bg:#FEE2E2;
+    --warning:#F59E0B;--warning-bg:#FEF3C7;
+    --info:#3B82F6;--info-bg:#DBEAFE;
+    --bg:#F3F4F6;--card:#FFF;--text:#1F2937;--text2:#6B7280;--border:#E5E7EB;
+    --shadow:0 2px 12px rgba(0,0,0,.08);--shadow-lg:0 8px 30px rgba(0,0,0,.12);
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);max-width:480px;margin:0 auto;min-height:100vh;overflow-x:hidden}
+
+  .loading-screen{position:fixed;inset:0;background:linear-gradient(135deg,var(--primary),var(--primary-light));z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff}
+  .loading-screen.hide{display:none}
+  .loading-spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .header{background:linear-gradient(135deg,var(--primary),var(--primary-light));color:#fff;padding:16px;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(79,70,229,.3)}
+  .header-top{display:flex;justify-content:space-between;align-items:center}
+  .header h1{font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .sync-badge{font-size:11px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.2);display:flex;align-items:center;gap:4px}
+  .sync-dot{width:7px;height:7px;border-radius:50%}
+  .sync-dot.on{background:#34D399;box-shadow:0 0 6px #34D399}
+  .sync-dot.off{background:#F87171}
+  .sync-dot.loading{background:#FBBF24;animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .header p{font-size:11px;opacity:.8;margin-top:3px}
+
+  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 16px}
+  .stat-card{background:var(--card);border-radius:14px;padding:14px 8px;text-align:center;box-shadow:var(--shadow)}
+  .stat-card .num{font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--primary-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .stat-card .label{font-size:11px;color:var(--text2);margin-top:3px}
+
+  .tab-bar{display:flex;background:var(--card);margin:0 16px;border-radius:14px;padding:4px;box-shadow:var(--shadow);position:sticky;top:56px;z-index:99}
+  .tab-btn{flex:1;padding:10px 0;text-align:center;font-size:13px;font-weight:600;color:var(--text2);border:none;background:none;border-radius:10px;cursor:pointer;transition:.2s}
+  .tab-btn.active{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(79,70,229,.4)}
+
+  .page{display:none;padding:16px}
+  .page.active{display:block}
+
+  .search-bar{position:relative;margin-bottom:12px}
+  .search-bar input{width:100%;padding:11px 14px 11px 38px;border:2px solid var(--border);border-radius:12px;font-size:14px;background:var(--card);outline:none;transition:.2s}
+  .search-bar input:focus{border-color:var(--primary)}
+  .search-bar .s-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--text2)}
+
+  .filter-tabs{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .filter-tabs::-webkit-scrollbar{display:none}
+  .filter-tab{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:2px solid var(--border);background:#fff;color:var(--text2);white-space:nowrap;cursor:pointer;transition:.2s}
+  .filter-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+  .action-bar{display:flex;gap:8px;margin-bottom:14px}
+  .action-bar .btn{flex:1;padding:10px;font-size:13px}
+
+  .form-card{background:var(--card);border-radius:16px;padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
+  .form-group{margin-bottom:14px}
+  .form-group label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:5px}
+  .form-group input,.form-group select,.form-group textarea{width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:10px;font-size:15px;color:var(--text);background:#FAFAFA;transition:.2s;outline:none;font-family:inherit}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--primary);background:#fff}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .section-title{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .section-title .icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+
+  .btn{width:100%;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-light));color:#fff;box-shadow:0 4px 15px rgba(79,70,229,.4)}
+  .btn-success{background:linear-gradient(135deg,#059669,var(--success));color:#fff;box-shadow:0 4px 15px rgba(16,185,129,.4)}
+  .btn-danger{background:linear-gradient(135deg,#DC2626,var(--danger));color:#fff;box-shadow:0 4px 15px rgba(239,68,68,.4)}
+  .btn-warning{background:linear-gradient(135deg,#D97706,var(--warning));color:#fff;box-shadow:0 4px 15px rgba(245,158,11,.4)}
+  .btn-sm{padding:8px 14px;font-size:12px;width:auto;border-radius:8px}
+  .btn-ghost{background:var(--bg);color:var(--text);box-shadow:none}
+  .btn-outline{background:transparent;color:var(--primary);border:2px solid var(--primary);box-shadow:none}
+
+  .product-item{background:var(--card);border-radius:14px;padding:16px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;transition:.2s}
+  .product-avatar{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+  .product-info{flex:1;min-width:0}
+  .product-name{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .product-meta{font-size:12px;color:var(--text2);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+  .product-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .product-stock{text-align:right;flex-shrink:0}
+  .product-stock .qty{font-size:22px;font-weight:800}
+  .product-stock .unit{font-size:11px;color:var(--text2)}
+  .stock-low{color:var(--danger)}.stock-ok{color:var(--success)}.stock-warn{color:var(--warning)}
+
+  .record-item{background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);display:flex;align-items:center;gap:12px}
+  .record-type{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .record-type.in{background:var(--success-bg)}
+  .record-type.out{background:var(--danger-bg)}
+  .record-info{flex:1;min-width:0}
+  .record-name{font-size:14px;font-weight:600}
+  .record-detail{font-size:12px;color:var(--text2);margin-top:2px}
+  .record-amount{text-align:right;flex-shrink:0}
+  .record-qty{font-size:16px;font-weight:700}
+  .record-qty.in{color:var(--success)}.record-qty.out{color:var(--danger)}
+  .record-price{font-size:11px;color:var(--text2)}
+  .date-group{font-size:12px;font-weight:600;color:var(--text2);padding:8px 0 4px;margin-top:8px}
+  
+  .dash-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .dash-card{background:var(--card);border-radius:12px;padding:12px;text-align:center;box-shadow:var(--shadow)}
+  .dash-card .val{font-size:18px;font-weight:800;margin-bottom:2px}
+  .dash-card .lbl{font-size:11px;color:var(--text2)}
+  .val-revenue{color:var(--info)}
+  .val-cost{color:var(--warning)}
+  .val-profit{color:var(--success)}
+  .val-negative{color:var(--danger)}
+
+  .chart-container{background:var(--card);border-radius:14px;padding:16px;box-shadow:var(--shadow);margin-bottom:16px}
+  .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .chart-title{font-size:14px;font-weight:700}
+  .chart-legend{display:flex;gap:12px;font-size:11px;color:var(--text2)}
+  .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:middle}
+  .chart-area{display:flex;align-items:flex-end;height:160px;gap:6px;padding:10px 0;border-bottom:1px solid var(--border);position:relative}
+  .chart-y-axis{position:absolute;left:0;top:0;bottom:0;width:30px;display:flex;flex-direction:column;justify-content:space-between;font-size:9px;color:var(--text2);padding:5px 0}
+  .chart-bars-wrapper{flex:1;display:flex;gap:6px;height:100%;margin-left:30px}
+  .chart-bar-group{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end}
+  .chart-bars{display:flex;gap:3px;align-items:flex-end;width:100%;height:100%}
+  .bar{width:50%;border-radius:3px 3px 0 0;min-height:2px;transition:height .5s ease-out;position:relative}
+  .bar.revenue{background:linear-gradient(180deg,var(--info),#93C5FD)}
+  .bar.profit{background:linear-gradient(180deg,var(--success),#6EE7B7)}
+  .bar.profit.neg{background:linear-gradient(180deg,var(--danger),#FCA5A5)}
+  .chart-label{font-size:10px;color:var(--text2);margin-top:6px;text-align:center}
+
+  .data-table-wrapper{background:var(--card);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
+  .data-table{width:100%;border-collapse:collapse;font-size:12px}
+  .data-table th{background:var(--bg);padding:10px 8px;text-align:left;font-weight:600;color:var(--text2);position:sticky;top:0}
+  .data-table td{padding:10px 8px;border-top:1px solid var(--border)}
+  .data-table tr:hover{background:#F9FAFB}
+  .text-right{text-align:right}
+  .text-success{color:var(--success);font-weight:600}
+  .text-danger{color:var(--danger);font-weight:600}
+
+  .summary-bar{background:var(--card);border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:var(--shadow);display:flex;justify-content:space-around;text-align:center}
+  .summary-item .val{font-size:16px;font-weight:800}
+  .summary-item .lbl{font-size:11px;color:var(--text2);margin-top:2px}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+  .modal-overlay.show{display:flex}
+  .modal-content{background:var(--bg);width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:20px;max-height:85vh;overflow-y:auto;animation:slideUp .2s ease}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .modal-header h3{font-size:18px;font-weight:700}
+  .modal-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--border);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+  .confirm-overlay.show{display:flex}
+  .confirm-box{background:#fff;border-radius:16px;padding:24px;width:280px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .confirm-box h4{font-size:17px;margin-bottom:8px}
+  .confirm-box p{font-size:13px;color:var(--text2);margin-bottom:20px}
+  .confirm-btns{display:flex;gap:10px}
+  .confirm-btns .btn{flex:1;padding:12px;font-size:14px}
+
+  .toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);background:rgba(0,0,0,.85);color:#fff;padding:14px 28px;border-radius:12px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:.2s;pointer-events:none;text-align:center;max-width:280px}
+  .toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+  .empty-state{text-align:center;padding:40px 20px;color:var(--text2)}
+  .empty-state .icon{font-size:48px;margin-bottom:12px}
+  .empty-state p{font-size:14px}
+
+  .settings-group{background:var(--card);border-radius:14px;padding:4px 0;margin-bottom:16px;box-shadow:var(--shadow)}
+  .settings-item{padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:.2s}
+  .settings-item:hover{background:var(--bg)}
+  .settings-item+.settings-item{border-top:1px solid var(--border)}
+  .settings-item .si-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .settings-item .si-info{flex:1}
+  .settings-item .si-title{font-size:14px;font-weight:600}
+  .settings-item .si-desc{font-size:12px;color:var(--text2);margin-top:2px}
+
+  .sync-config{background:var(--card);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .sync-config h4{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+  .sync-status-bar{padding:10px;border-radius:8px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .sync-status-bar.ok{background:var(--success-bg);color:#065F46}
+  .sync-status-bar.err{background:var(--danger-bg);color:#991B1B}
+  .sync-log{background:#1F2937;color:#A7F3D0;padding:12px;border-radius:8px;font-size:11px;font-family:monospace;max-height:150px;overflow-y:auto;margin-top:10px;line-height:1.6}
+
+  .cat-0{background:linear-gradient(135deg,#DBEAFE,#BFDBFE)}
+  .cat-1{background:linear-gradient(135deg,#D1FAE5,#A7F3D0)}
+  .cat-2{background:linear-gradient(135deg,#FEF3C7,#FDE68A)}
+  .cat-3{background:linear-gradient(135deg,#FCE7F3,#FBCFE8)}
+  .cat-4{background:linear-gradient(135deg,#E0E7FF,#C7D2FE)}
+  .cat-5{background:linear-gradient(135deg,#FEE2E2,#FECACA)}
+  .cat-6{background:linear-gradient(135deg,#CCFBF1,#99F6E4)}
+
+  .user-menu{position:relative}
+  .user-avatar-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;border:2px solid rgba(255,255,255,.4)}
+  .user-dropdown{display:none;position:absolute;right:0;top:40px;background:#fff;border-radius:12px;box-shadow:var(--shadow-lg);overflow:hidden;min-width:160px;z-index:200}
+  .user-dropdown.show{display:block}
+  .user-dropdown .ud-item{padding:12px 16px;font-size:13px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:8px;transition:.2s}
+  .user-dropdown .ud-item:hover{background:var(--bg)}
+  .user-dropdown .ud-item.danger{color:var(--danger)}
+  .user-dropdown .ud-divider{height:1px;background:var(--border)}
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-spinner"></div>
+  <p style="font-size:15px">正在初始化...</p>
+</div>
+
+<div id="mainApp" style="display:none;padding-bottom:20px">
+  <div class="header">
+    <div class="header-top">
+      <h1>📦 进销存管理</h1>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="sync-badge" id="syncBadge"><div class="sync-dot off" id="syncDot"></div><span id="syncLabel">本地</span></div>
+        <div class="user-menu">
+          <div class="user-avatar-btn" id="userAvatarBtn">⚙️</div>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="ud-item" id="menuSettings">⚙️ 云端同步设置</div>
+            <div class="ud-divider"></div>
+            <div class="ud-item" id="menuExportJSON">📁 导出备份(JSON)</div>
+            <div class="ud-item" id="menuExportCSV">📊 导出记录(CSV)</div>
+            <div class="ud-item" id="menuImport">📂 导入数据</div>
+            <div class="ud-divider"></div>
+            <div class="ud-item danger" id="menuClearAll">🗑 清空所有数据</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p id="headerDate"></p>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="num" id="statProducts">0</div><div class="label">商品总数</div></div>
+    <div class="stat-card"><div class="num" id="statTodayIn">0</div><div class="label">今日入货</div></div>
+    <div class="stat-card"><div class="num" id="statTodayOut">0</div><div class="label">今日出货</div></div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="inventory">📋 库存</button>
+    <button class="tab-btn" data-tab="inbound">📥 入货</button>
+    <button class="tab-btn" data-tab="outbound">📤 出货</button>
+    <button class="tab-btn" data-tab="dashboard">📈 报表</button>
+  </div>
+
+  <div class="page active" id="page-inventory">
+    <div class="search-bar"><span class="s-icon">🔍</span><input type="text" id="searchInventory" placeholder="搜索商品名称..."></div>
+    <div class="filter-tabs" id="categoryFilters"></div>
+    <div class="action-bar">
+      <button class="btn btn-primary btn-sm" id="addProductBtn">➕ 添加商品</button>
+      <button class="btn btn-sm" id="quickExportBtn" style="background:var(--primary-bg);color:var(--primary);border:2px solid #C7D2FE">📁 导出</button>
+    </div>
+    <div id="productList"></div>
+  </div>
+
+  <div class="page" id="page-inbound">
+    <div class="form-card">
+      <div class="section-title"><span class="icon" style="background:var(--success-bg)">📥</span>入货登记</div>
+      <div class="form-group"><label>选择商品</label><select id="inProduct"><option value="">-- 请选择商品 --</option></select></div>
+      <div class="form-row">
+        <div class="form-group"><label>入货数量</label><input type="number" id="inQty" placeholder="数量" min="1"></div>
+        <div class="form-group"><label>进货单价(元)</label><input type="number" id="inPrice" placeholder="单价" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>供应商/备注</label><input type="text" id="inNote" placeholder="选填"></div>
+      <button class="btn btn-success" id="submitInboundBtn">✅ 确认入货</button>
+    </div>
+  </div>
+
+  <div class="page" id="page-outbound">
+    <div class="form-card">
+      <div class="section-title"><span class="icon" style="background:var(--danger-bg)">📤</span>出货登记</div>
+      <div class="form-group"><label>选择商品</label><select id="outProduct"><option value="">-- 请选择商品 --</option></select></div>
+      <div id="stockHint" style="font-size:12px;color:var(--text2);margin:-8px 0 12px;padding-left:4px"></div>
+      <div class="form-row">
+        <div class="form-group"><label>出货数量</label><input type="number" id="outQty" placeholder="数量" min="1"></div>
+        <div class="form-group"><label>销售单价(元)</label><input type="number" id="outPrice" placeholder="单价" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>客户/备注</label><input type="text" id="outNote" placeholder="选填"></div>
+      <button class="btn btn-danger" id="submitOutboundBtn">📤 确认出货</button>
+    </div>
+  </div>
+
+  <div class="page" id="page-dashboard">
+    <div class="filter-tabs" id="dashRangeTabs" style="margin-bottom:16px">
+      <button class="filter-tab active" data-range="7">近7天</button>
+      <button class="filter-tab" data-range="30">近30天</button>
+      <button class="filter-tab" data-range="all">全部</button>
+    </div>
+
+    <div class="dash-summary" id="dashSummary"></div>
+
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">📊 销售与利润趋势</div>
+        <div class="chart-legend">
+          <span><span class="legend-dot" style="background:var(--info)"></span>销售额</span>
+          <span><span class="legend-dot" style="background:var(--success)"></span>利润</span>
+        </div>
+      </div>
+      <div class="chart-area">
+        <div class="chart-y-axis" id="chartYAxis"></div>
+        <div class="chart-bars-wrapper" id="chartBars"></div>
+      </div>
+    </div>
+
+    <div class="section-title"><span class="icon" style="background:var(--primary-bg)">📋</span>每日经营明细</div>
+    <div class="data-table-wrapper">
+      <table class="data-table" id="dashTable">
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th class="text-right">销售额</th>
+            <th class="text-right">成本</th>
+            <th class="text-right">利润</th>
+          </tr>
+        </thead>
+        <tbody id="dashTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="page" id="page-settings">
+    <div class="section-title" style="margin-top:0"><span class="icon" style="background:var(--info-bg)">☁️</span>云端同步设置</div>
+    <div class="sync-config" id="syncConfig">
+      <h4>🔗 同步服务器配置</h4>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">配置您自己的后端服务器地址，实现数据云端同步。点击右上角菜单可查看部署指南。</p>
+      <div id="syncStatusBar"></div>
+      <div class="form-group"><label>服务器地址</label><input type="text" id="serverUrl" placeholder="例如: http://192.168.1.100:3000"></div>
+      <div class="form-group"><label>同步密钥 (自定义)</label><input type="password" id="serverKey" placeholder="设置一个同步密钥"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" id="testConnBtn" style="flex:1">🔍 测试连接</button>
+        <button class="btn btn-success btn-sm" id="saveSyncBtn" style="flex:1">💾 保存配置</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-warning btn-sm" id="pushDataBtn" style="flex:1">⬆️ 上传数据</button>
+        <button class="btn btn-outline btn-sm" id="pullDataBtn" style="flex:1">⬇️ 拉取数据</button>
+      </div>
+      <div class="sync-log" id="syncLog" style="display:none"></div>
+    </div>
+
+    <div class="section-title"><span class="icon" style="background:var(--warning-bg)">📖</span>后端部署指南</div>
+    <div class="sync-config">
+      <h4>🚀 一键部署 Node.js 后端</h4>
+      <div style="font-size:12px;color:var(--text2);line-height:1.8">
+        <p><strong>本地部署测试：</strong></p>
+        <p>1. 安装 Node.js</p>
+        <p>2. 新建 <code style="background:var(--bg);padding:2px 6px;border-radius:4px">server.js</code> 并粘贴代码</p>
+        <p>3. 运行 <code style="background:var(--bg);padding:2px 6px;border-radius:4px">npm init -y && npm i express cors</code></p>
+        <p>4. 运行 <code style="background:var(--bg);padding:2px 6px;border-radius:4px">node server.js</code></p>
+      </div>
+      <button class="btn btn-outline btn-sm" id="copyServerCodeBtn" style="margin-top:12px">📋 复制后端代码</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="productModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="modalTitle">添加商品</h3><button class="modal-close" id="closeProductModal">✕</button></div>
+    <div class="form-group"><label>商品名称 *</label><input type="text" id="prodName" placeholder="输入商品名称"></div>
+    <div class="form-row">
+      <div class="form-group"><label>分类</label><select id="prodCategory"><option>其他</option><option>食品</option><option>饮料</option><option>日用品</option><option>服装</option><option>电子</option><option>美妆</option></select></div>
+      <div class="form-group"><label>单位</label><select id="prodUnit"><option>件</option><option>箱</option><option>个</option><option>瓶</option><option>包</option><option>kg</option><option>台</option></select></div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-group"><label>初始库存</label><input type="number" id="prodStock" value="0" min="0"></div>
+      <div class="form-group"><label>预警库存</label><input type="number" id="prodAlert" value="5" min="0"></div>
+      <div class="form-group"><label>默认进价</label><input type="number" id="prodCostPrice" value="0" min="0" step="0.01" placeholder="算利润用"></div>
+    </div>
+    <div class="form-group"><label>备注</label><input type="text" id="prodRemark" placeholder="选填"></div>
+    <button class="btn btn-primary" id="saveProductBtn">✅ 保存商品</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="importModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3>📂 导入数据</h3><button class="modal-close" id="closeImportModal">✕</button></div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:12px">选择之前导出的 JSON 备份文件。</p>
+    <div class="form-group"><input type="file" id="importFile" accept=".json"></div>
+    <button class="btn btn-primary" id="importSubmitBtn">📂 开始导入</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="serverCodeModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3>📋 后端代码</h3><button class="modal-close" id="closeServerCodeModal">✕</button></div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:12px">复制以下代码保存为 <strong>server.js</strong>：</p>
+    <textarea id="serverCodeText" readonly style="width:100%;height:300px;background:#1F2937;color:#A7F3D0;border:none;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;resize:vertical"></textarea>
+    <button class="btn btn-primary" id="copyCodeBtn" style="margin-top:12px">📋 复制到剪贴板</button>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmDialog">
+  <div class="confirm-box">
+    <h4 id="confirmTitle">确认？</h4>
+    <p id="confirmMsg">此操作不可撤销</p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" id="confirmCancel">取消</button>
+      <button class="btn btn-danger" id="confirmOk">确认</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== 极速 IndexedDB 封装 ====================
+const DB_NAME = 'ShopInventoryDB';
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 2); 
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('products')) {
+        const ps = d.createObjectStore('products', { keyPath: 'id' });
+        ps.createIndex('name', 'name');
+      }
+      if (!d.objectStoreNames.contains('records')) {
+        const rs = d.createObjectStore('records', { keyPath: 'id' });
+        rs.createIndex('productId', 'productId');
+        rs.createIndex('timestamp', 'timestamp');
+      }
+      if (!d.objectStoreNames.contains('config')) d.createObjectStore('config', { keyPath: 'key' });
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+function dbPutBatch(storeName, dataArray) {
+  if (!dataArray.length) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    for (const data of dataArray) store.put(data);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function dbPut(storeName, data) { return dbPutBatch(storeName, [data]); }
+
+function dbGetAll(storeName) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbDelete(storeName, key) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(storeName, 'readwrite').objectStore(storeName).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbClear(storeName) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(storeName, 'readwrite').objectStore(storeName).clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbGetConfig(key) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction('config', 'readonly').objectStore('config').get(key);
+    req.onsuccess = () => resolve(req.result ? req.result.value : null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbSetConfig(key, value) { return dbPut('config', { key, value }); }
+
+// ==================== APP STATE ====================
+const APP = {
+  products: [], records: [], editingProductId: null,
+  currentRecordFilter: 'all', currentCategoryFilter: 'all', dashRange: 7,
+  confirmCallback: null, serverUrl: '', serverKey: '', isSyncing: false
+};
+
+// ==================== UTILITIES ====================
+const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const formatDate = (ts) => { const d=new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const formatShortDate = (ts) => { const d=new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`; };
+const formatTime = (ts) => { const d=new Date(ts); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+const isToday = (ts) => { const d=new Date(ts),t=new Date(); return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()&&d.getDate()===t.getDate(); };
+const showToast = (msg, dur=1500) => { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur); };
+const getCategoryEmoji = (c) => ({'食品':'🍔','饮料':'🥤','日用品':'🧴','服装':'👕','电子':'📱','美妆':'💄','其他':'📦'}[c]||'📦');
+const getCategoryIndex = (c) => { const i=['食品','饮料','日用品','服装','电子','美妆','其他'].indexOf(c); return i>=0?i%7:6; };
+const setSyncStatus = (s, l) => { document.getElementById('syncDot').className='sync-dot '+s; document.getElementById('syncLabel').textContent=l; };
+const addSyncLog = (msg) => { const log=document.getElementById('syncLog'); log.style.display='block'; log.innerHTML+=`<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`; log.scrollTop=log.scrollHeight; };
+const formatMoney = (n) => '¥' + (n || 0).toFixed(2);
+
+// ==================== DATA OPERATIONS ====================
+async function loadAllData() {
+  const [products, records] = await Promise.all([dbGetAll('products'), dbGetAll('records')]);
+  APP.products = products;
+  APP.records = records.sort((a,b) => b.timestamp - a.timestamp);
+}
+
+async function addProduct(data) {
+  data.id = genId(); data.createdAt = Date.now();
+  await dbPut('products', data);
+  APP.products.push(data);
+  renderAll(); showToast('✅ 商品已添加');
+}
+
+async function updateProduct(id, data) {
+  const p = APP.products.find(x => x.id === id);
+  if (p) { Object.assign(p, data); await dbPut('products', p); }
+  renderAll(); showToast('✅ 商品已更新');
+}
+
+async function deleteProduct(id) {
+  APP.products = APP.products.filter(x => x.id !== id);
+  const deletedRecords = APP.records.filter(x => x.productId === id);
+  APP.records = APP.records.filter(x => x.productId !== id);
+  await dbDelete('products', id);
+  const tx = db.transaction('records', 'readwrite');
+  const store = tx.objectStore('records');
+  deletedRecords.forEach(r => store.delete(r.id));
+  renderAll(); showToast('🗑 已删除');
+}
+
+async function addInbound(productId, qty, price, note) {
+  const p = APP.products.find(x => x.id === productId);
+  if (!p) return;
+  p.stock += qty;
+  if (price > 0 && (!p.costPrice || p.costPrice === 0)) {
+    p.costPrice = price;
+  }
+  const record = { id: genId(), type:'in', productId, productName: p.name, qty, price, total: qty*price, note, timestamp: Date.now() };
+  const tx = db.transaction(['products', 'records'], 'readwrite');
+  tx.objectStore('products').put(p);
+  tx.objectStore('records').put(record);
+  APP.records.unshift(record);
+  renderAll(); showToast(`✅ ${p.name} 入货 ${qty}${p.unit}`);
+}
+
+async function addOutbound(productId, qty, price, note) {
+  const p = APP.products.find(x => x.id === productId);
+  if (!p) return;
+  if (qty > p.stock) { showToast(`❌ 库存不足！当前 ${p.stock}${p.unit}`); return; }
+  p.stock -= qty;
+  const costTotal = qty * (p.costPrice || 0); 
+  const record = { id: genId(), type:'out', productId, productName: p.name, qty, price, total: qty*price, costTotal, note, timestamp: Date.now() };
+  const tx = db.transaction(['products', 'records'], 'readwrite');
+  tx.objectStore('products').put(p);
+  tx.objectStore('records').put(record);
+  APP.records.unshift(record);
+  renderAll(); showToast(`📤 ${p.name} 出货 ${qty}${p.unit}`);
+}
+
+// ==================== RENDERING ====================
+function renderAll() { updateStats(); renderProducts(); refreshProductSelects(); }
+
+function updateStats() {
+  document.getElementById('statProducts').textContent = APP.products.length;
+  document.getElementById('statTodayIn').textContent = APP.records.filter(r => r.type==='in' && isToday(r.timestamp)).reduce((s,r)=>s+r.qty,0);
+  document.getElementById('statTodayOut').textContent = APP.records.filter(r => r.type==='out' && isToday(r.timestamp)).reduce((s,r)=>s+r.qty,0);
+  const now=new Date(), days=['日','一','二','三','四','五','六'];
+  document.getElementById('headerDate').textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 星期${days[now.getDay()]}`;
+}
+
+function renderProducts() {
+  const search = document.getElementById('searchInventory').value.trim().toLowerCase();
+  let products = APP.products.filter(p => {
+    if (search && !p.name.toLowerCase().includes(search)) return false;
+    if (APP.currentCategoryFilter !== 'all' && p.category !== APP.currentCategoryFilter) return false;
+    return true;
+  });
+  products.sort((a,b) => (a.stock<=a.alertQty?0:1) - (b.stock<=b.alertQty?0:1) || a.name.localeCompare(b.name,'zh'));
+
+  const cats = [...new Set(APP.products.map(p => p.category))];
+  let fh = `<button class="filter-tab ${APP.currentCategoryFilter==='all'?'active':''}" data-cat="all">全部</button>`;
+  cats.forEach(c => { fh += `<button class="filter-tab ${APP.currentCategoryFilter===c?'active':''}" data-cat="${c}">${getCategoryEmoji(c)} ${c}</button>`; });
+  document.getElementById('categoryFilters').innerHTML = fh;
+  document.querySelectorAll('#categoryFilters .filter-tab').forEach(btn => btn.onclick = function() { APP.currentCategoryFilter=this.dataset.cat; renderProducts(); });
+
+  const container = document.getElementById('productList');
+  if (!products.length) { container.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>${search?'未找到匹配商品':'还没有商品，点击上方添加'}</p></div>`; return; }
+
+  container.innerHTML = products.map(p => {
+    const sc = p.stock<=0?'stock-low':p.stock<=p.alertQty?'stock-warn':'stock-ok';
+    return `<div class="product-item"><div class="product-avatar cat-${getCategoryIndex(p.category)}">${getCategoryEmoji(p.category)}</div><div class="product-info"><div class="product-name">${p.name}</div><div class="product-meta"><span>${p.category}</span><span>${p.unit}</span><span>进价:¥${(p.costPrice||0).toFixed(2)}</span>${p.stock<=p.alertQty?'<span style="color:var(--danger)">⚠️ 库存不足</span>':''}</div><div class="product-actions"><button class="btn btn-sm btn-success act-in" data-id="${p.id}">📥入</button><button class="btn btn-sm btn-warning act-out" data-id="${p.id}">📤出</button><button class="btn btn-sm act-edit" data-id="${p.id}" style="background:var(--primary-bg);color:var(--primary)">✏️</button><button class="btn btn-sm act-del" data-id="${p.id}" style="background:var(--danger-bg);color:var(--danger)">🗑</button></div></div><div class="product-stock"><div class="qty ${sc}">${p.stock}</div><div class="unit">${p.unit}</div></div></div>`;
+  }).join('');
+
+  container.querySelectorAll('.act-in').forEach(b => b.onclick = function(e) { e.stopPropagation(); switchTab('inbound'); setTimeout(()=>{document.getElementById('inProduct').value=this.dataset.id;},50); });
+  container.querySelectorAll('.act-out').forEach(b => b.onclick = function(e) { e.stopPropagation(); switchTab('outbound'); setTimeout(()=>{document.getElementById('outProduct').value=this.dataset.id; showStockHint();},50); });
+  container.querySelectorAll('.act-edit').forEach(b => b.onclick = function(e) { e.stopPropagation(); editProduct(this.dataset.id); });
+  container.querySelectorAll('.act-del').forEach(b => b.onclick = function(e) { e.stopPropagation(); confirmDeleteProduct(this.dataset.id); });
+}
+
+function refreshProductSelects() {
+  const opts = '<option value="">-- 请选择商品 --</option>' + APP.products.map(p => `<option value="${p.id}">${p.name} (库存:${p.stock}${p.unit})</option>`).join('');
+  document.getElementById('inProduct').innerHTML = opts;
+  document.getElementById('outProduct').innerHTML = opts;
+}
+
+function showStockHint() {
+  const id = document.getElementById('outProduct').value;
+  const hint = document.getElementById('stockHint');
+  if (!id) { hint.textContent=''; return; }
+  const p = APP.products.find(x=>x.id===id);
+  if (p) hint.innerHTML = `当前库存: <strong>${p.stock} ${p.unit}</strong> | 参考进价: <strong>¥${(p.costPrice||0).toFixed(2)}</strong>`;
+}
+
+// ==================== DASHBOARD RENDERING ====================
+function renderDashboard() {
+  const range = APP.dashRange;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  let startDate = new Date(0);
+  if (range !== 'all') {
+    startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - (range - 1));
+  }
+
+  const filteredRecords = APP.records.filter(r => {
+    const rDate = new Date(r.timestamp);
+    rDate.setHours(0,0,0,0);
+    return rDate >= startDate && rDate <= today;
+  });
+
+  let totalRevenue = 0, totalCost = 0, totalProfit = 0;
+  filteredRecords.forEach(r => {
+    if (r.type === 'out') {
+      totalRevenue += (r.total || 0);
+      totalCost += (r.costTotal || 0);
+    }
+  });
+  totalProfit = totalRevenue - totalCost;
+
+  document.getElementById('dashSummary').innerHTML = `
+    <div class="dash-card"><div class="val val-revenue">${formatMoney(totalRevenue)}</div><div class="lbl">总销售额</div></div>
+    <div class="dash-card"><div class="val val-cost">${formatMoney(totalCost)}</div><div class="lbl">销货成本</div></div>
+    <div class="dash-card"><div class="val ${totalProfit >= 0 ? 'val-profit' : 'val-negative'}">${formatMoney(totalProfit)}</div><div class="lbl">毛利润</div></div>
+  `;
+
+  const dailyMap = {};
+  filteredRecords.forEach(r => {
+    const dateStr = formatDate(r.timestamp);
+    if (!dailyMap[dateStr]) dailyMap[dateStr] = { date: dateStr, revenue: 0, cost: 0, profit: 0 };
+    if (r.type === 'out') {
+      dailyMap[dateStr].revenue += (r.total || 0);
+      dailyMap[dateStr].cost += (r.costTotal || 0);
+    }
+  });
+  
+  let dailyData = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
+  
+  if (range !== 'all') {
+    const filledData = [];
+    for (let i = 0; i < range; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      const dateStr = formatDate(d.getTime());
+      const existing = dailyMap[dateStr] || { date: dateStr, revenue: 0, cost: 0, profit: 0 };
+      filledData.push(existing);
+    }
+    dailyData = filledData;
+  }
+
+  renderChart(dailyData);
+
+  const tableData = [...dailyData].reverse();
+  document.getElementById('dashTableBody').innerHTML = tableData.map(d => {
+    const profitClass = d.profit >= 0 ? 'text-success' : 'text-danger';
+    return `<tr>
+      <td>${d.date.slice(5)}</td>
+      <td class="text-right">${formatMoney(d.revenue)}</td>
+      <td class="text-right">${formatMoney(d.cost)}</td>
+      <td class="text-right ${profitClass}">${formatMoney(d.profit)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderChart(data) {
+  const chartBars = document.getElementById('chartBars');
+  const chartYAxis = document.getElementById('chartYAxis');
+  
+  if (!data.length) {
+    chartBars.innerHTML = '<div style="width:100%;text-align:center;color:var(--text2);align-self:center">暂无数据</div>';
+    chartYAxis.innerHTML = '';
+    return;
+  }
+
+  let maxVal = 0;
+  data.forEach(d => {
+    maxVal = Math.max(maxVal, d.revenue, Math.abs(d.profit));
+  });
+  if (maxVal === 0) maxVal = 100; 
+
+  const yLabels = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0].map(v => v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0));
+  chartYAxis.innerHTML = yLabels.map(l => `<span>${l}</span>`).join('');
+
+  chartBars.innerHTML = data.map(d => {
+    const revH = (d.revenue / maxVal) * 100;
+    const profH = (Math.abs(d.profit) / maxVal) * 100;
+    const profClass = d.profit >= 0 ? 'profit' : 'profit neg';
+    return `<div class="chart-bar-group">
+      <div class="chart-bars">
+        <div class="bar revenue" style="height:${revH}%" title="销售:${d.revenue.toFixed(2)}"></div>
+        <div class="bar ${profClass}" style="height:${profH}%" title="利润:${d.profit.toFixed(2)}"></div>
+      </div>
+      <div class="chart-label">${formatShortDate(new Date(d.date).getTime())}</div>
+    </div>`;
+  }).join('');
+}
+
+// ==================== TABS ====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  if (tab==='inventory') renderProducts();
+  if (tab==='inbound'||tab==='outbound') refreshProductSelects();
+  if (tab==='dashboard') renderDashboard();
+  updateStats();
+}
+
+function openAddProduct() {
+  APP.editingProductId = null;
+  document.getElementById('modalTitle').textContent = '添加商品';
+  ['prodName','prodRemark'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('prodCategory').value='其他'; document.getElementById('prodUnit').value='件';
+  document.getElementById('prodStock').value='0'; document.getElementById('prodAlert').value='5'; document.getElementById('prodCostPrice').value='0';
+  document.getElementById('productModal').classList.add('show');
+}
+
+function editProduct(id) {
+  const p = APP.products.find(x=>x.id===id); if (!p) return;
+  APP.editingProductId = id;
+  document.getElementById('modalTitle').textContent = '编辑商品';
+  document.getElementById('prodName').value=p.name; document.getElementById('prodCategory').value=p.category;
+  document.getElementById('prodUnit').value=p.unit; document.getElementById('prodStock').value=p.stock;
+  document.getElementById('prodAlert').value=p.alertQty; document.getElementById('prodCostPrice').value=p.costPrice||0;
+  document.getElementById('prodRemark').value=p.remark||'';
+  document.getElementById('productModal').classList.add('show');
+}
+
+async function saveProduct() {
+  const name = document.getElementById('prodName').value.trim();
+  if (!name) { showToast('❌ 请输入商品名称'); return; }
+  const data = { 
+    name, 
+    category: document.getElementById('prodCategory').value, 
+    unit: document.getElementById('prodUnit').value, 
+    stock: parseInt(document.getElementById('prodStock').value)||0, 
+    alertQty: parseInt(document.getElementById('prodAlert').value)||0, 
+    costPrice: parseFloat(document.getElementById('prodCostPrice').value)||0,
+    remark: document.getElementById('prodRemark').value.trim() 
+  };
+  if (APP.editingProductId) {
+    if (APP.products.some(x=>x.id!==APP.editingProductId && x.name===name)) { showToast('❌ 名称已存在'); return; }
+    await updateProduct(APP.editingProductId, data);
+  } else {
+    if (APP.products.some(x=>x.name===name)) { showToast('❌ 名称已存在'); return; }
+    await addProduct(data);
+  }
+  closeModal('productModal');
+}
+
+function confirmDeleteProduct(id) {
+  const p = APP.products.find(x=>x.id===id); if (!p) return;
+  showConfirm('确认删除？', `将删除「${p.name}」及其所有记录`, ()=>deleteProduct(id));
+}
+
+async function submitInbound() {
+  const pid=document.getElementById('inProduct').value, qty=parseInt(document.getElementById('inQty').value), price=parseFloat(document.getElementById('inPrice').value)||0, note=document.getElementById('inNote').value.trim();
+  if (!pid) { showToast('❌ 请选择商品'); return; }
+  if (!qty||qty<=0) { showToast('❌ 请输入有效数量'); return; }
+  await addInbound(pid, qty, price, note);
+  ['inQty','inPrice','inNote','inProduct'].forEach(id=>document.getElementById(id).value='');
+}
+
+async function submitOutbound() {
+  const pid=document.getElementById('outProduct').value, qty=parseInt(document.getElementById('outQty').value), price=parseFloat(document.getElementById('outPrice').value)||0, note=document.getElementById('outNote').value.trim();
+  if (!pid) { showToast('❌ 请选择商品'); return; }
+  if (!qty||qty<=0) { showToast('❌ 请输入有效数量'); return; }
+  await addOutbound(pid, qty, price, note);
+  ['outQty','outPrice','outNote','outProduct'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('stockHint').textContent='';
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({products:APP.products,records:APP.records,exportDate:new Date().toISOString()},null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`进销存备份_${formatDate(Date.now())}.json`; a.click();
+  showToast('📁 JSON 备份已导出');
+}
+
+function exportCSV() {
+  let csv = '\uFEFF类型,商品名称,数量,单价,金额,成本,利润,备注,时间\n';
+  APP.records.forEach(r => { 
+    const profit = r.type === 'out' ? (r.total||0) - (r.costTotal||0) : '';
+    csv += `${r.type==='in'?'入货':'出货'},${r.productName},${r.qty},${r.price||''},${r.total||''},${r.costTotal||''},${profit},${r.note||''},${formatDate(r.timestamp)} ${formatTime(r.timestamp)}\n`; 
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`进销存记录_${formatDate(Date.now())}.csv`; a.click();
+  showToast('📊 CSV 已导出');
+}
+
+async function importJSON(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data.products || !data.records) throw new Error('格式不正确');
+    let pc=0, rc=0;
+    const newP = [], newR = [];
+    for (const p of data.products) { if (!APP.products.some(x=>x.id===p.id)) { APP.products.push(p); newP.push(p); pc++; } }
+    for (const r of data.records) { if (!APP.records.some(x=>x.id===r.id)) { APP.records.push(r); newR.push(r); rc++; } }
+    await Promise.all([dbPutBatch('products', newP), dbPutBatch('records', newR)]);
+    APP.records.sort((a,b)=>b.timestamp-a.timestamp);
+    renderAll(); showToast(`✅ 导入: ${pc}个商品, ${rc}条记录`);
+  } catch(e) { showToast('❌ 导入失败: '+e.message); }
+}
+
+async function clearAllData() {
+  await Promise.all([dbClear('products'), dbClear('records')]);
+  APP.products = []; APP.records = [];
+  // 注意：这里故意不清除 'hasSeededDemo' 标记，确保清空后刷新不会复活演示数据
+  renderAll(); 
+  showToast('🗑 数据已彻底清空，刷新也不会恢复');
+}
+
+// ==================== CLOUD SYNC ====================
+const SERVER_CODE = `const express=require('express'),cors=require('cors'),fs=require('fs'),path=require('path');
+const app=express(),PORT=process.env.PORT||3000,DATA_DIR=path.join(__dirname,'data');
+app.use(cors());app.use(express.json({limit:'50mb'}));
+if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR);
+function auth(req,res,next){const k=req.headers['x-sync-key'],u=req.headers['x-user-id']||'default',kf=path.join(DATA_DIR,u+'.key');if(fs.existsSync(kf)&&k!==fs.readFileSync(kf,'utf8').trim())return res.status(401).json({error:'密钥错误'});if(!fs.existsSync(kf)&&k)fs.writeFileSync(kf,k);next();}
+app.get('/api/health',(req,res)=>res.json({status:'ok',time:new Date().toISOString()}));
+app.post('/api/sync/push',auth,(req,res)=>{try{fs.writeFileSync(path.join(DATA_DIR,(req.headers['x-user-id']||'default')+'.json'),JSON.stringify(req.body));res.json({success:true,message:'数据已保存'});}catch(e){res.status(500).json({error:e.message});}});
+app.get('/api/sync/pull',auth,(req,res)=>{try{const f=path.join(DATA_DIR,(req.headers['x-user-id']||'default')+'.json');res.json(fs.existsSync(f)?JSON.parse(fs.readFileSync(f,'utf8')):{products:[],records:[]});}catch(e){res.status(500).json({error:e.message});}});
+app.listen(PORT,()=>console.log('Server running on port '+PORT));`;
+
+async function testConnection() {
+  const url = document.getElementById('serverUrl').value.trim().replace(/\/$/,'');
+  if (!url) { showToast('❌ 请输入服务器地址'); return; }
+  addSyncLog('🔍 测试连接: ' + url); setSyncStatus('loading', '测试中');
+  try {
+    const resp = await fetch(url + '/api/health');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    addSyncLog('✅ 连接成功！'); document.getElementById('syncStatusBar').innerHTML = `<div class="sync-status-bar ok">✅ 服务器连接正常</div>`; setSyncStatus('on', '已连接');
+  } catch(e) { addSyncLog('❌ 失败: ' + e.message); document.getElementById('syncStatusBar').innerHTML = `<div class="sync-status-bar err">❌ 连接失败: ${e.message}</div>`; setSyncStatus('off', '失败'); }
+}
+
+async function saveSyncConfig() {
+  const url = document.getElementById('serverUrl').value.trim().replace(/\/$/,'');
+  const key = document.getElementById('serverKey').value.trim();
+  if (!url) { showToast('❌ 请输入地址'); return; }
+  APP.serverUrl = url; APP.serverKey = key;
+  await Promise.all([dbSetConfig('serverUrl', url), dbSetConfig('serverKey', key)]);
+  addSyncLog('💾 配置已保存'); showToast('✅ 配置已保存');
+}
+
+async function pushData() {
+  if (!APP.serverUrl) { showToast('❌ 请先配置地址'); return; }
+  if (APP.isSyncing) return; APP.isSyncing = true; setSyncStatus('loading', '上传中'); addSyncLog('⬆️ 上传中...');
+  try {
+    const resp = await fetch(APP.serverUrl + '/api/sync/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sync-Key': APP.serverKey, 'X-User-Id': 'default' }, body: JSON.stringify({ products: APP.products, records: APP.records, lastSync: new Date().toISOString() }) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    addSyncLog('✅ 上传成功！'); setSyncStatus('on', '已同步'); showToast('✅ 数据已上传');
+  } catch(e) { addSyncLog('❌ 失败: ' + e.message); setSyncStatus('off', '失败'); showToast('❌ 上传失败'); }
+  APP.isSyncing = false;
+}
+
+async function pullData() {
+  if (!APP.serverUrl) { showToast('❌ 请先配置地址'); return; }
+  if (APP.isSyncing) return; APP.isSyncing = true; setSyncStatus('loading', '拉取中'); addSyncLog('⬇️ 拉取中...');
+  try {
+    const resp = await fetch(APP.serverUrl + '/api/sync/pull', { headers: { 'X-Sync-Key': APP.serverKey, 'X-User-Id': 'default' } });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    if (data.products && data.records) {
+      let pc=0, rc=0; const newP=[], newR=[];
+      for (const p of data.products) { const ex=APP.products.find(x=>x.id===p.id); if(!ex){APP.products.push(p);newP.push(p);pc++;}else{Object.assign(ex,p);newP.push(ex);} }
+      for (const r of data.records) { if(!APP.records.some(x=>x.id===r.id)){APP.records.push(r);newR.push(r);rc++;} }
+      await Promise.all([dbPutBatch('products', newP), dbPutBatch('records', newR)]);
+      APP.records.sort((a,b)=>b.timestamp-a.timestamp); renderAll();
+      addSyncLog(`✅ 拉取成功！+${pc}商品, +${rc}记录`); showToast(`✅ 拉取成功`); setSyncStatus('on', '已同步');
+    } else { addSyncLog('ℹ️ 云端暂无数据'); showToast('ℹ️ 云端暂无数据'); }
+  } catch(e) { addSyncLog('❌ 失败: ' + e.message); setSyncStatus('off', '失败'); showToast('❌ 拉取失败'); }
+  APP.isSyncing = false;
+}
+
+// ==================== MODALS ====================
+const closeModal = (id) => document.getElementById(id).classList.remove('show');
+const showConfirm = (t, m, cb) => { document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmMsg').textContent=m; APP.confirmCallback=cb; document.getElementById('confirmDialog').classList.add('show'); };
+const closeConfirm = () => { document.getElementById('confirmDialog').classList.remove('show'); APP.confirmCallback=null; };
+
+// ==================== 极速初始化 ====================
+document.addEventListener('DOMContentLoaded', async function() {
+  try {
+    await openDB();
+    // 【修复核心】：增加读取 hasSeededDemo 标记
+    const [_, configUrl, configKey, hasSeeded] = await Promise.all([ 
+      loadAllData(), 
+      dbGetConfig('serverUrl'), 
+      dbGetConfig('serverKey'),
+      dbGetConfig('hasSeededDemo') 
+    ]);
+
+    document.getElementById('mainApp').style.display = 'block';
+    document.getElementById('loadingScreen').classList.add('hide');
+
+    setTimeout(async () => {
+      // 【修复核心】：只有在“从未初始化过”且“当前没数据”时，才生成演示数据
+      if (!hasSeeded && APP.products.length === 0) {
+        const demo = [
+          {id:genId(),name:'可口可乐330ml',category:'饮料',unit:'箱',stock:25,alertQty:5,costPrice:45,remark:'',createdAt:Date.now()},
+          {id:genId(),name:'康师傅方便面',category:'食品',unit:'箱',stock:12,alertQty:5,costPrice:30,remark:'',createdAt:Date.now()},
+          {id:genId(),name:'维达抽纸',category:'日用品',unit:'包',stock:3,alertQty:5,costPrice:4,remark:'',createdAt:Date.now()},
+          {id:genId(),name:'农夫山泉550ml',category:'饮料',unit:'箱',stock:40,alertQty:10,costPrice:20,remark:'',createdAt:Date.now()},
+          {id:genId(),name:'乐事薯片',category:'食品',unit:'件',stock:8,alertQty:5,costPrice:5,remark:'',createdAt:Date.now()},
+        ];
+        const now = Date.now();
+        const demoR = [
+          {id:genId(),type:'in',productId:demo[0].id,productName:demo[0].name,qty:30,price:45,total:1350,note:'供应商A',timestamp:now-86400000*2},
+          {id:genId(),type:'out',productId:demo[0].id,productName:demo[0].name,qty:5,price:60,total:300,costTotal:225,note:'零售',timestamp:now-86400000*2},
+          {id:genId(),type:'in',productId:demo[1].id,productName:demo[1].name,qty:20,price:30,total:600,note:'',timestamp:now-86400000},
+          {id:genId(),type:'out',productId:demo[1].id,productName:demo[1].name,qty:8,price:45,total:360,costTotal:240,note:'',timestamp:now-86400000},
+          {id:genId(),type:'out',productId:demo[2].id,productName:demo[2].name,qty:7,price:8,total:56,costTotal:28,note:'',timestamp:now-3600000},
+          {id:genId(),type:'in',productId:demo[3].id,productName:demo[3].name,qty:50,price:20,total:1000,note:'供应商B',timestamp:now-1800000},
+          {id:genId(),type:'out',productId:demo[3].id,productName:demo[3].name,qty:10,price:30,total:300,costTotal:200,note:'',timestamp:now-1800000},
+        ];
+        await Promise.all([dbPutBatch('products', demo), dbPutBatch('records', demoR)]);
+        APP.products = demo;
+        APP.records = demoR.sort((a,b)=>b.timestamp-a.timestamp);
+        
+        // 【修复核心】：写入标记，表示已经初始化过了
+        await dbSetConfig('hasSeededDemo', true); 
+      }
+
+      if (configUrl) { document.getElementById('serverUrl').value = configUrl; APP.serverUrl = configUrl; setSyncStatus('on', '已配置'); }
+      if (configKey) { document.getElementById('serverKey').value = configKey; APP.serverKey = configKey; }
+      
+      renderAll();
+    }, 10);
+
+  } catch(e) {
+    console.error('Init error:', e);
+    document.getElementById('loadingScreen').innerHTML = '<p style="color:#fff;padding:20px;text-align:center">❌ 初始化失败<br>请使用 Chrome/Edge 等现代浏览器</p>';
+  }
+
+  // ---- 事件绑定 ----
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.onclick = function() { switchTab(this.dataset.tab); });
+  document.getElementById('searchInventory').oninput = renderProducts;
+  
+  document.getElementById('dashRangeTabs').onclick = function(e) { 
+    const b=e.target.closest('.filter-tab'); if(!b)return; 
+    APP.dashRange = b.dataset.range === 'all' ? 'all' : parseInt(b.dataset.range);
+    this.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active')); 
+    b.classList.add('active'); 
+    renderDashboard(); 
+  };
+
+  document.getElementById('outProduct').onchange = showStockHint;
+  document.getElementById('addProductBtn').onclick = openAddProduct;
+  document.getElementById('saveProductBtn').onclick = saveProduct;
+  document.getElementById('closeProductModal').onclick = () => closeModal('productModal');
+  document.getElementById('productModal').onclick = function(e) { if(e.target===this) closeModal('productModal'); };
+  document.getElementById('submitInboundBtn').onclick = submitInbound;
+  document.getElementById('submitOutboundBtn').onclick = submitOutbound;
+  
+  document.getElementById('userAvatarBtn').onclick = function(e) { e.stopPropagation(); document.getElementById('userDropdown').classList.toggle('show'); };
+  document.onclick = () => document.getElementById('userDropdown').classList.remove('show');
+  
+  document.getElementById('menuSettings').onclick = () => { 
+    document.getElementById('userDropdown').classList.remove('show'); 
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-settings').classList.add('active');
+  };
+  document.getElementById('menuExportJSON').onclick = () => { exportJSON(); document.getElementById('userDropdown').classList.remove('show'); };
+  document.getElementById('menuExportCSV').onclick = () => { exportCSV(); document.getElementById('userDropdown').classList.remove('show'); };
+  document.getElementById('menuImport').onclick = () => { document.getElementById('importModal').classList.add('show'); document.getElementById('userDropdown').classList.remove('show'); };
+  document.getElementById('menuClearAll').onclick = () => { document.getElementById('userDropdown').classList.remove('show'); showConfirm('清空所有数据？', '删除后彻底清空，刷新也不会恢复！', clearAllData); };
+  document.getElementById('quickExportBtn').onclick = exportJSON;
+  
+  document.getElementById('testConnBtn').onclick = testConnection;
+  document.getElementById('saveSyncBtn').onclick = saveSyncConfig;
+  document.getElementById('pushDataBtn').onclick = pushData;
+  document.getElementById('pullDataBtn').onclick = pullData;
+  document.getElementById('copyServerCodeBtn').onclick = () => { document.getElementById('serverCodeText').value = SERVER_CODE; document.getElementById('serverCodeModal').classList.add('show'); };
+  document.getElementById('closeServerCodeModal').onclick = () => closeModal('serverCodeModal');
+  document.getElementById('serverCodeModal').onclick = function(e) { if(e.target===this) closeModal('serverCodeModal'); };
+  document.getElementById('copyCodeBtn').onclick = () => { const ta=document.getElementById('serverCodeText'); ta.select(); document.execCommand('copy'); if(navigator.clipboard)navigator.clipboard.writeText(ta.value).catch(()=>{}); showToast('📋 代码已复制'); };
+  
+  document.getElementById('closeImportModal').onclick = () => closeModal('importModal');
+  document.getElementById('importModal').onclick = function(e) { if(e.target===this) closeModal('importModal'); };
+  document.getElementById('importSubmitBtn').onclick = () => { const f=document.getElementById('importFile').files[0]; if(!f){showToast('❌ 请选择文件');return;} importJSON(f); closeModal('importModal'); };
+  
+  document.getElementById('confirmCancel').onclick = closeConfirm;
+  document.getElementById('confirmOk').onclick = () => { if(APP.confirmCallback)APP.confirmCallback(); closeConfirm(); };
+  document.getElementById('confirmDialog').onclick = function(e) { if(e.target===this) closeConfirm(); };
+});
+</script>
+</body>
+</html>
